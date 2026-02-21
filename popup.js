@@ -1,21 +1,33 @@
-const msg = document.getElementById("message");
-const btn = document.getElementById("connect");
+// popup.js
 
-btn.onclick = () => {
-  msg.textContent = "Opening Google login…";
+document.addEventListener("DOMContentLoaded", () => {
+  const connectBtn = document.getElementById("connect");
 
-  chrome.runtime.sendMessage({ type: "AUTH" }, (res) => {
-    if (chrome.runtime.lastError) {
-      msg.textContent = "Extension error. Please reload.";
-      return;
-    }
+  if (!connectBtn) return;
 
-    if (res?.success) {
-      msg.textContent =
-        "Connected successfully. GSC data will be shown when available.";
-    } else {
-      msg.textContent =
-        res?.error || "Unable to connect. Please try again.";
-    }
+  connectBtn.addEventListener("click", () => {
+    connectBtn.disabled = true;
+    connectBtn.textContent = "Connecting…";
+
+    chrome.runtime.sendMessage(
+      { type: "AUTH_GSC" },
+      (response) => {
+        connectBtn.disabled = false;
+        connectBtn.textContent = "Connect GSC";
+
+        if (chrome.runtime.lastError) {
+          alert("❌ Extension error. Please reload the extension.");
+          return;
+        }
+
+        if (response && response.success) {
+          alert("✅ Google login successful");
+        } else {
+          alert(
+            "❌ Google login failed or was cancelled.\nPlease try again."
+          );
+        }
+      }
+    );
   });
-};
+});

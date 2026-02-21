@@ -1,26 +1,31 @@
-const CLIENT_ID =
-  "669869853203-la12753n1ac5u8m5apt26fmgcnliprq0.apps.googleusercontent.com";
+{
+  "manifest_version": 3,
+  "name": "GSC URL Insights",
+  "description": "View Google Search Console insights for the current page.",
+  "version": "0.1.5",
 
-const SCOPES = [
-  "https://www.googleapis.com/auth/webmasters.readonly"
-];
+  "permissions": [
+    "identity",
+    "storage",
+    "tabs"
+  ],
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === "AUTH_GSC") {
-    chrome.identity.getAuthToken(
-      { interactive: true },
-      (token) => {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          sendResponse({ error: chrome.runtime.lastError.message });
-          return;
-        }
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
 
-        chrome.storage.local.set({ gscToken: token }, () => {
-          sendResponse({ success: true });
-        });
-      }
-    );
-    return true; // IMPORTANT
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+  "oauth2": {
+    "client_id": "669869853203-la12753n1ac5u8m5apt26fmgcnliprq0.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/webmasters.readonly"
+    ]
   }
-});
+}

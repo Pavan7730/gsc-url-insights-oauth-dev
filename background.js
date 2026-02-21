@@ -1,47 +1,30 @@
-const CLIENT_ID =
-  "669869853203-la12753n1ac5u8m5apt26fmgcnliprq0.apps.googleusercontent.com";
+// background.js
 
-const SCOPES = "https://www.googleapis.com/auth/webmasters.readonly";
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "AUTH_GSC") {
+    chrome.identity.getAuthToken(
+      { interactive: true },
+      (token) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "OAuth error:",
+            chrome.runtime.lastError.message
+          );
+          sendResponse({
+            success: false,
+            error: chrome.runtime.lastError.message
+          });
+          return;
+        }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === "AUTH") {
-    authenticate(sendResponse);
+        // Store token locally
+        chrome.storage.local.set({ gscToken: token }, () => {
+          sendResponse({ success: true });
+        });
+      }
+    );
+
+    // REQUIRED: keep the message channel open
     return true;
   }
 });
-
-function authenticate(sendResponse) {
-  const redirectUri = chrome.identity.getRedirectURL();
-
-  const authUrl =
-    "https://accounts.google.com/o/oauth2/v2/auth" +
-    "?client_id=" + encodeURIComponent(CLIENT_ID) +
-    "&response_type=token" +
-    "&redirect_uri=" + encodeURIComponent(redirectUri) +
-    "&scope=" + encodeURIComponent(SCOPES) +
-    "&prompt=consent";
-
-  chrome.identity.launchWebAuthFlow(
-    { url: authUrl, interactive: true },
-    (redirectUrl) => {
-      if (!redirectUrl) {
-        sendResponse({ error: "Login cancelled" });
-        return;
-      }
-
-      const params = new URLSearchParams(
-        redirectUrl.substring(redirectUrl.indexOf("#") + 1)
-      );
-      const token = params.get("access_token");
-
-      if (!token) {
-        sendResponse({ error: "No token received" });
-        return;
-      }
-
-      chrome.storage.local.set({ gscToken: token }, () => {
-        sendResponse({ success: true });
-      });
-    }
-  );
-}

@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "GSC URL Insights (OAuth Dev)",
+  "description": "OAuth development version for GSC URL Insights",
+  "version": "0.1.5",
+  "permissions": [
+    "tabs",
+    "identity",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

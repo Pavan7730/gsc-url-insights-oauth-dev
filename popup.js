@@ -1,33 +1,22 @@
-// popup.js
+const loginBtn = document.getElementById("login");
+const statusEl = document.getElementById("status");
 
-document.addEventListener("DOMContentLoaded", () => {
-  const connectBtn = document.getElementById("connect");
+loginBtn.addEventListener("click", () => {
+  statusEl.textContent = "Opening Google login…";
 
-  if (!connectBtn) return;
-
-  connectBtn.addEventListener("click", () => {
-    connectBtn.disabled = true;
-    connectBtn.textContent = "Connecting…";
-
-    chrome.runtime.sendMessage(
-      { type: "AUTH_GSC" },
-      (response) => {
-        connectBtn.disabled = false;
-        connectBtn.textContent = "Connect GSC";
-
-        if (chrome.runtime.lastError) {
-          alert("❌ Extension error. Please reload the extension.");
-          return;
-        }
-
-        if (response && response.success) {
-          alert("✅ Google login successful");
-        } else {
-          alert(
-            "❌ Google login failed or was cancelled.\nPlease try again."
-          );
-        }
+  chrome.runtime.sendMessage(
+    { type: "LOGIN" },
+    (response) => {
+      if (!response) {
+        statusEl.textContent = "Unexpected error.";
+        return;
       }
-    );
-  });
+
+      if (response.success) {
+        statusEl.textContent = "✅ Login successful";
+      } else {
+        statusEl.textContent = "❌ " + response.error;
+      }
+    }
+  );
 });

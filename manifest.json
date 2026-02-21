@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GSC URL Insights",
-  "description": "View Google Search Console insights for the current page.",
-  "version": "0.1.5",
+  "name": "GSC URL Insights (OAuth Dev)",
+  "description": "Dev build – Google Search Console OAuth testing",
+  "version": "0.1.6",
 
   "permissions": [
     "identity",
@@ -11,7 +11,8 @@
   ],
 
   "host_permissions": [
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "https://accounts.google.com/*"
   ],
 
   "background": {
@@ -20,12 +21,5 @@
 
   "action": {
     "default_popup": "popup.html"
-  },
-
-  "oauth2": {
-    "client_id": "669869853203-la12753n1ac5u8m5apt26fmgcnliprq0.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/webmasters.readonly"
-    ]
   }
 }

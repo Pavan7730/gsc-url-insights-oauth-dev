@@ -1,25 +1,26 @@
-{
-  "manifest_version": 3,
-  "name": "GSC URL Insights (OAuth Dev)",
-  "description": "OAuth development version for GSC URL Insights",
-  "version": "0.1.5",
-  "permissions": [
-    "tabs",
-    "identity",
-    "storage"
-  ],
-  "host_permissions": [
-    "https://www.googleapis.com/*"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_popup": "popup.html"
-  },
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+const CLIENT_ID =
+  "669869853203-la12753n1ac5u8m5apt26fmgcnliprq0.apps.googleusercontent.com";
+
+const SCOPES = [
+  "https://www.googleapis.com/auth/webmasters.readonly"
+];
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "AUTH_GSC") {
+    chrome.identity.getAuthToken(
+      { interactive: true },
+      (token) => {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          sendResponse({ error: chrome.runtime.lastError.message });
+          return;
+        }
+
+        chrome.storage.local.set({ gscToken: token }, () => {
+          sendResponse({ success: true });
+        });
+      }
+    );
+    return true; // IMPORTANT
   }
-}
+});

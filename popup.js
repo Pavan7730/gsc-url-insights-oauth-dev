@@ -1,28 +1,48 @@
-const statusEl = document.getElementById("status");
+const pageUrlEl = document.getElementById("pageUrl");
 const connectBtn = document.getElementById("connectBtn");
 const fetchBtn = document.getElementById("fetchBtn");
-const dateRange = document.getElementById("dateRange");
+const statusEl = document.getElementById("status");
 const statsEl = document.getElementById("stats");
 const table = document.getElementById("table");
 const tbody = table.querySelector("tbody");
+
+const rangeSelect = document.getElementById("dateRange");
+const fromDate = document.getElementById("fromDate");
+const toDate = document.getElementById("toDate");
 
 let token = null;
 let sites = [];
 let pageUrl = "";
 
+/* ---------------- LOAD PAGE URL ---------------- */
+
 chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-  const u = new URL(tab.url);
-  u.search = "";
-  u.hash = "";
-  pageUrl = u.toString();
-  document.getElementById("pageUrl").textContent = pageUrl;
+  try {
+    const u = new URL(tab.url);
+    u.search = "";
+    u.hash = "";
+    pageUrl = u.toString();
+    pageUrlEl.textContent = pageUrl;
+    connectBtn.disabled = false;
+  } catch {
+    pageUrlEl.textContent = "Invalid page URL";
+  }
 });
 
-/* ---------- CONNECT ---------- */
-connectBtn.onclick = () => {
+/* ---------------- DATE UI ---------------- */
+
+rangeSelect.addEventListener("change", () => {
+  const custom = rangeSelect.value === "custom";
+  fromDate.style.display = custom ? "block" : "none";
+  toDate.style.display = custom ? "block" : "none";
+});
+
+/* ---------------- CONNECT GSC ---------------- */
+
+connectBtn.addEventListener("click", () => {
   statusEl.textContent = "Connecting to Google…";
 
-  chrome.identity.getAuthToken({ interactive: true }, t => {
+  chrome.identity.getAuthToken({ interactive: true }, (t) => {
     if (chrome.runtime.lastError || !t) {
       statusEl.textContent = "❌ Google login failed";
       return;
@@ -31,9 +51,8 @@ connectBtn.onclick = () => {
     token = t;
     loadSites();
   });
-};
+});
 
-/* ---------- LOAD PROPERTIES ---------- */
 function loadSites() {
   fetch("https://www.googleapis.com/webmasters/v3/sites", {
     headers: { Authorization: `Bearer ${token}` }
@@ -43,17 +62,19 @@ function loadSites() {
       sites = d.siteEntry || [];
       statusEl.textContent = `✅ GSC connected. ${sites.length} properties found.`;
       fetchBtn.disabled = false;
-      dateRange.disabled = false;
     })
     .catch(() => {
-      statusEl.textContent = "❌ Unable to load GSC properties";
+      statusEl.textContent = "❌ Failed to load GSC sites";
     });
 }
 
-/* ---------- FETCH PAGE DATA ---------- */
-fetchBtn.onclick = () => {
-  const property = findPropertyForPage();
+/* ---------------- FETCH DATA ---------------- */
 
+fetchBtn.addEventListener("click", () => {
+  statsEl.innerHTML = "";
+  table.style.display = "none";
+
+  const property = findPropertyForPage();
   if (!property) {
     statusEl.textContent = "⚠ Page not found in any GSC property";
     return;
@@ -61,11 +82,12 @@ fetchBtn.onclick = () => {
 
   statusEl.textContent = "Fetching page-level data…";
   fetchPageData(property);
-};
+});
 
-/* ---------- PROPERTY MATCHING ---------- */
+/* ---------------- PROPERTY MATCHING ---------------- */
+
 function findPropertyForPage() {
-  // URL-prefix first (most accurate)
+  // URL-prefix first
   for (const s of sites) {
     if (s.siteUrl.startsWith("http") && pageUrl.startsWith(s.siteUrl)) {
       return s.siteUrl;
@@ -74,24 +96,39 @@ function findPropertyForPage() {
 
   // Domain fallback
   const host = new URL(pageUrl).hostname;
-  return sites.find(s => s.siteUrl === `sc-domain:${host}`)?.siteUrl;
+  const domain = `sc-domain:${host}`;
+  if (sites.find(s => s.siteUrl === domain)) return domain;
+
+  return null;
 }
 
-/* ---------- PAGE QUERY ---------- */
+/* ---------------- GSC QUERY ---------------- */
+
 function fetchPageData(property) {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - Number(dateRange.value));
+  const end = formatDate(new Date());
+  let start;
+
+  if (rangeSelect.value === "custom") {
+    if (!fromDate.value || !toDate.value) {
+      statusEl.textContent = "⚠ Select custom dates";
+      return;
+    }
+    start = fromDate.value;
+  } else {
+    const d = new Date();
+    d.setDate(d.getDate() - parseInt(rangeSelect.value, 10));
+    start = formatDate(d);
+  }
 
   const body = {
-    startDate: start.toISOString().slice(0, 10),
-    endDate: end.toISOString().slice(0, 10),
+    startDate: start,
+    endDate: end,
     dimensions: ["query"],
     rowLimit: 10,
     dimensionFilterGroups: [{
       filters: [{
         dimension: "page",
-        operator: "contains",   // 🔥 FIX
+        operator: "equals",
         expression: pageUrl
       }]
     }]
@@ -113,27 +150,39 @@ function fetchPageData(property) {
     .catch(() => statusEl.textContent = "❌ Failed to fetch data");
 }
 
-/* ---------- RENDER ---------- */
-function renderData(rows) {
-  statsEl.innerHTML = "";
-  tbody.innerHTML = "";
-  table.style.display = "none";
+/* ---------------- RENDER ---------------- */
 
+function renderData(rows) {
   if (!rows.length) {
-    statusEl.textContent = "⚠ No page-level data found";
+    statusEl.textContent = "⚠ No data for this page";
     return;
   }
 
-  table.style.display = "table";
-  statusEl.textContent = "✅ Page-level GSC data loaded";
-
+  let clicks = 0, impr = 0;
   rows.forEach(r => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${r.keys[0]}</td>
-        <td>${r.clicks}</td>
-        <td>${r.impressions}</td>
-      </tr>
-    `;
+    clicks += r.clicks;
+    impr += r.impressions;
   });
+
+  statsEl.innerHTML = `
+    <div class="card"><strong>${clicks}</strong>Clicks</div>
+    <div class="card"><strong>${impr}</strong>Impressions</div>
+  `;
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.keys[0]}</td>
+      <td>${r.clicks}</td>
+      <td>${r.impressions}</td>
+    </tr>
+  `).join("");
+
+  table.style.display = "table";
+  statusEl.textContent = "✅ Page-level data loaded";
+}
+
+/* ---------------- UTIL ---------------- */
+
+function formatDate(d) {
+  return d.toISOString().split("T")[0];
 }

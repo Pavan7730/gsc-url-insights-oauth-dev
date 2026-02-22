@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8" />
   <title>GSC URL Insights</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      width: 280px;
+      width: 260px;
       padding: 12px;
     }
     button {
@@ -19,11 +19,16 @@
       margin-top: 10px;
       font-size: 13px;
     }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
   </style>
 </head>
 <body>
-
-  <button id="connectGSC">Connect GSC</button>
+  <button id="loginBtn">Connect GSC</button>
   <div id="status"></div>
 
   <script src="popup.js"></script>

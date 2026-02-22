@@ -6,39 +6,52 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      width: 320px;
+      width: 360px;
       padding: 14px;
+      background: #fff;
     }
 
     h3 {
-      margin-top: 0;
-      margin-bottom: 12px;
+      margin: 0 0 12px;
+      font-size: 16px;
     }
 
-    button, select {
+    button {
       width: 100%;
       padding: 10px;
       margin-top: 8px;
-      border-radius: 4px;
-      border: none;
       font-size: 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
     }
 
-    button.primary {
+    #loginBtn {
       background: #1a73e8;
       color: #fff;
     }
 
-    button.success {
+    #fetchBtn {
       background: #34a853;
       color: #fff;
     }
 
-    button:disabled {
-      background: #ccc;
+    select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 10px;
+      font-size: 13px;
     }
 
     .status {
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    .success { color: #188038; }
+    .error { color: #d93025; }
+
+    .totals {
       margin-top: 10px;
       font-size: 13px;
     }
@@ -57,7 +70,7 @@
     }
 
     th {
-      background: #f8f9fa;
+      background: #f7f7f7;
     }
   </style>
 </head>
@@ -65,21 +78,24 @@
 <body>
   <h3>GSC URL Insights</h3>
 
-  <button id="connectBtn" class="primary">Connect with Google</button>
+  <button id="loginBtn">Connect with Google</button>
 
-  <select id="rangeSelect">
+  <select id="range">
     <option value="3">Last 3 days</option>
     <option value="7">Last 7 days</option>
-    <option value="28">Last 28 days</option>
   </select>
 
-  <button id="fetchBtn" class="success" disabled>
-    Check Page GSC Data
-  </button>
+  <button id="fetchBtn" disabled>Check Page GSC Data</button>
 
-  <div id="status" class="status"></div>
+  <div class="status" id="status"></div>
 
-  <table id="queryTable" style="display:none">
+  <div class="totals" id="totals" style="display:none;">
+    <div>✅ <strong>Total Clicks:</strong> <span id="clicks"></span></div>
+    <div>✅ <strong>Total Impressions:</strong> <span id="impr"></span></div>
+    <div>✅ <strong>CTR:</strong> <span id="ctr"></span></div>
+  </div>
+
+  <table id="table" style="display:none;">
     <thead>
       <tr>
         <th>Query</th>

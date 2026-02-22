@@ -1,50 +1,37 @@
 const pageUrlEl = document.getElementById("pageUrl");
+const statusEl = document.getElementById("status");
 const connectBtn = document.getElementById("connectBtn");
 const fetchBtn = document.getElementById("fetchBtn");
-const statusEl = document.getElementById("status");
-const statsEl = document.getElementById("stats");
+const rangeSelect = document.getElementById("range");
 const table = document.getElementById("table");
 const tbody = table.querySelector("tbody");
 
-const rangeSelect = document.getElementById("dateRange");
-const fromDate = document.getElementById("fromDate");
-const toDate = document.getElementById("toDate");
-
-let token = null;
-let sites = [];
 let pageUrl = "";
+let token = "";
+let sites = [];
 
-/* ---------------- LOAD PAGE URL ---------------- */
+/* ---------------- GET CURRENT TAB URL ---------------- */
 
 chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-  try {
-    const u = new URL(tab.url);
-    u.search = "";
-    u.hash = "";
-    pageUrl = u.toString();
-    pageUrlEl.textContent = pageUrl;
-    connectBtn.disabled = false;
-  } catch {
-    pageUrlEl.textContent = "Invalid page URL";
+  if (!tab || !tab.url || !tab.url.startsWith("http")) {
+    pageUrlEl.textContent = "❌ Open a normal webpage (http/https)";
+    connectBtn.disabled = true;
+    fetchBtn.disabled = true;
+    return;
   }
-});
 
-/* ---------------- DATE UI ---------------- */
-
-rangeSelect.addEventListener("change", () => {
-  const custom = rangeSelect.value === "custom";
-  fromDate.style.display = custom ? "block" : "none";
-  toDate.style.display = custom ? "block" : "none";
+  pageUrl = tab.url.split("#")[0];
+  pageUrlEl.textContent = pageUrl;
 });
 
 /* ---------------- CONNECT GSC ---------------- */
 
 connectBtn.addEventListener("click", () => {
-  statusEl.textContent = "Connecting to Google…";
+  statusEl.textContent = "Opening Google login…";
 
-  chrome.identity.getAuthToken({ interactive: true }, (t) => {
+  chrome.identity.getAuthToken({ interactive: true }, t => {
     if (chrome.runtime.lastError || !t) {
-      statusEl.textContent = "❌ Google login failed";
+      statusEl.innerHTML = "<span class='error'>Google login failed</span>";
       return;
     }
 
@@ -60,69 +47,54 @@ function loadSites() {
     .then(r => r.json())
     .then(d => {
       sites = d.siteEntry || [];
-      statusEl.textContent = `✅ GSC connected. ${sites.length} properties found.`;
+      statusEl.innerHTML = `<span class="success">✅ GSC connected. ${sites.length} properties found.</span>`;
       fetchBtn.disabled = false;
     })
     .catch(() => {
-      statusEl.textContent = "❌ Failed to load GSC sites";
+      statusEl.innerHTML = "<span class='error'>Failed to load GSC properties</span>";
     });
 }
 
-/* ---------------- FETCH DATA ---------------- */
+/* ---------------- FETCH PAGE DATA ---------------- */
 
 fetchBtn.addEventListener("click", () => {
-  statsEl.innerHTML = "";
   table.style.display = "none";
+  tbody.innerHTML = "";
 
-  const property = findPropertyForPage();
+  const property = findProperty();
   if (!property) {
-    statusEl.textContent = "⚠ Page not found in any GSC property";
+    statusEl.innerHTML = "<span class='error'>Page not found in any GSC property</span>";
     return;
   }
 
   statusEl.textContent = "Fetching page-level data…";
-  fetchPageData(property);
+  fetchData(property);
 });
 
-/* ---------------- PROPERTY MATCHING ---------------- */
+function findProperty() {
+  const host = new URL(pageUrl).hostname;
 
-function findPropertyForPage() {
-  // URL-prefix first
+  // Prefer URL-prefix
   for (const s of sites) {
     if (s.siteUrl.startsWith("http") && pageUrl.startsWith(s.siteUrl)) {
       return s.siteUrl;
     }
   }
 
-  // Domain fallback
-  const host = new URL(pageUrl).hostname;
-  const domain = `sc-domain:${host}`;
-  if (sites.find(s => s.siteUrl === domain)) return domain;
-
-  return null;
+  // Fallback to domain
+  const domainProp = `sc-domain:${host}`;
+  return sites.find(s => s.siteUrl === domainProp)?.siteUrl || null;
 }
 
-/* ---------------- GSC QUERY ---------------- */
-
-function fetchPageData(property) {
-  const end = formatDate(new Date());
-  let start;
-
-  if (rangeSelect.value === "custom") {
-    if (!fromDate.value || !toDate.value) {
-      statusEl.textContent = "⚠ Select custom dates";
-      return;
-    }
-    start = fromDate.value;
-  } else {
-    const d = new Date();
-    d.setDate(d.getDate() - parseInt(rangeSelect.value, 10));
-    start = formatDate(d);
-  }
+function fetchData(property) {
+  const days = parseInt(rangeSelect.value, 10);
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
 
   const body = {
-    startDate: start,
-    endDate: end,
+    startDate: start.toISOString().split("T")[0],
+    endDate: end.toISOString().split("T")[0],
     dimensions: ["query"],
     rowLimit: 10,
     dimensionFilterGroups: [{
@@ -134,55 +106,33 @@ function fetchPageData(property) {
     }]
   };
 
-  fetch(
-    `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    }
-  )
+  fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  })
     .then(r => r.json())
-    .then(d => renderData(d.rows || []))
-    .catch(() => statusEl.textContent = "❌ Failed to fetch data");
-}
+    .then(d => {
+      if (!d.rows || !d.rows.length) {
+        statusEl.innerHTML = "<span class='error'>No data for this page</span>";
+        return;
+      }
 
-/* ---------------- RENDER ---------------- */
+      tbody.innerHTML = d.rows.map(r => `
+        <tr>
+          <td>${r.keys[0]}</td>
+          <td>${r.clicks}</td>
+          <td>${r.impressions}</td>
+        </tr>
+      `).join("");
 
-function renderData(rows) {
-  if (!rows.length) {
-    statusEl.textContent = "⚠ No data for this page";
-    return;
-  }
-
-  let clicks = 0, impr = 0;
-  rows.forEach(r => {
-    clicks += r.clicks;
-    impr += r.impressions;
-  });
-
-  statsEl.innerHTML = `
-    <div class="card"><strong>${clicks}</strong>Clicks</div>
-    <div class="card"><strong>${impr}</strong>Impressions</div>
-  `;
-
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.keys[0]}</td>
-      <td>${r.clicks}</td>
-      <td>${r.impressions}</td>
-    </tr>
-  `).join("");
-
-  table.style.display = "table";
-  statusEl.textContent = "✅ Page-level data loaded";
-}
-
-/* ---------------- UTIL ---------------- */
-
-function formatDate(d) {
-  return d.toISOString().split("T")[0];
+      table.style.display = "table";
+      statusEl.innerHTML = "<span class='success'>✅ Page data loaded</span>";
+    })
+    .catch(() => {
+      statusEl.innerHTML = "<span class='error'>Failed to fetch data</span>";
+    });
 }

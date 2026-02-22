@@ -1,144 +1,103 @@
+const statusEl = document.getElementById("status");
 const connectBtn = document.getElementById("connectBtn");
 const fetchBtn = document.getElementById("fetchBtn");
-const statusEl = document.getElementById("status");
-const statsEl = document.getElementById("stats");
 
-let token = null;
-let sites = [];
+let accessToken = null;
+let pageUrl = null;
 
-/* ---------------- CONNECT GSC ---------------- */
-
-connectBtn.addEventListener("click", () => {
-  statusEl.textContent = "Signing in with Google…";
-
-  chrome.identity.getAuthToken({ interactive: true }, t => {
-    if (chrome.runtime.lastError || !t) {
-      statusEl.innerHTML = "<span style='color:red'>Google login failed</span>";
-      return;
-    }
-
-    token = t;
-    loadSites();
-  });
-});
-
-function loadSites() {
-  fetch("https://www.googleapis.com/webmasters/v3/sites", {
-    headers: { Authorization: `Bearer ${token}` }
-  })
-    .then(r => r.json())
-    .then(d => {
-      sites = d.siteEntry || [];
-      statusEl.innerHTML = `<span style="color:green">GSC connected (${sites.length} properties)</span>`;
-      fetchBtn.disabled = false;
-    })
-    .catch(() => {
-      statusEl.innerHTML = "<span style='color:red'>Failed to load GSC sites</span>";
-    });
-}
-
-/* ---------------- FETCH PAGE DATA ---------------- */
-
-fetchBtn.addEventListener("click", () => {
-  statsEl.innerHTML = "";
-
-  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-    const tab = tabs[0];
-
-    if (!tab || !tab.url || !tab.url.startsWith("http")) {
-      statusEl.innerHTML = "<span style='color:red'>Open a valid website page</span>";
-      return;
-    }
-
-    let pageUrl;
-    try {
-      const u = new URL(tab.url);
-      u.hash = "";
-      pageUrl = u.toString();
-    } catch {
-      statusEl.innerHTML = "<span style='color:red'>Invalid page URL</span>";
-      return;
-    }
-
-    const property = matchProperty(pageUrl);
-
-    if (!property) {
-      statusEl.innerHTML = "<span style='color:red'>Page not found in GSC</span>";
-      return;
-    }
-
-    statusEl.textContent = "Fetching page-level GSC data…";
-    fetchPageData(property, pageUrl);
-  });
-});
-
-/* ---------------- PROPERTY MATCHING ---------------- */
-
-function matchProperty(pageUrl) {
-  const host = new URL(pageUrl).hostname;
-
-  // URL-prefix (best)
-  for (const s of sites) {
-    if (s.siteUrl.startsWith("http") && pageUrl.startsWith(s.siteUrl)) {
-      return s.siteUrl;
-    }
+/* -------------------- GET CURRENT PAGE URL -------------------- */
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  if (!tabs || !tabs[0] || !tabs[0].url) {
+    showInvalidPage();
+    return;
   }
 
-  // Domain property fallback
-  const domainProp = `sc-domain:${host}`;
-  return sites.find(s => s.siteUrl === domainProp)?.siteUrl || null;
-}
+  const url = tabs[0].url;
 
-/* ---------------- FETCH DATA ---------------- */
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    showInvalidPage();
+    return;
+  }
 
-function fetchPageData(property, pageUrl) {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - 3);
+  pageUrl = url;
+});
 
-  const body = {
-    startDate: start.toISOString().split("T")[0],
-    endDate: end.toISOString().split("T")[0],
-    dimensions: [],
-    dimensionFilterGroups: [{
-      filters: [{
-        dimension: "page",
-        operator: "equals",
-        expression: pageUrl
-      }]
-    }]
-  };
+/* -------------------- CONNECT GOOGLE -------------------- */
+connectBtn.addEventListener("click", () => {
+  statusEl.textContent = "Connecting to Google…";
 
-  fetch(
-    `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
+  chrome.identity.getAuthToken({ interactive: true }, (token) => {
+    if (chrome.runtime.lastError || !token) {
+      statusEl.textContent = "❌ Google login failed";
+      return;
     }
-  )
-    .then(r => r.json())
-    .then(d => {
-      const row = d.rows?.[0];
 
-      if (!row) {
-        statusEl.innerHTML = "<span style='color:red'>No data for this page</span>";
+    accessToken = token;
+    statusEl.textContent = "✅ Google connected. Ready to fetch GSC data.";
+  });
+});
+
+/* -------------------- FETCH PAGE GSC DATA -------------------- */
+fetchBtn.addEventListener("click", () => {
+  if (!accessToken) {
+    statusEl.textContent = "❌ Please connect Google first";
+    return;
+  }
+
+  if (!pageUrl) {
+    showInvalidPage();
+    return;
+  }
+
+  statusEl.textContent = "Fetching GSC data…";
+
+  const host = new URL(pageUrl).hostname;
+  const property = `sc-domain:${host}`;
+
+  const today = new Date();
+  const endDate = formatDate(today);
+  const startDate = formatDate(new Date(today.setDate(today.getDate() - 3)));
+
+  fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      startDate,
+      endDate,
+      dimensions: [],
+      dimensionFilterGroups: [{
+        filters: [{
+          dimension: "page",
+          operator: "equals",
+          expression: pageUrl
+        }]
+      }]
+    })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (!data.rows || !data.rows.length) {
+        statusEl.textContent = "⚠ No GSC data for this page";
         return;
       }
 
-      statsEl.innerHTML = `
-        <div><strong>Clicks:</strong> ${row.clicks}</div>
-        <div><strong>Impressions:</strong> ${row.impressions}</div>
-        <div><strong>CTR:</strong> ${(row.ctr * 100).toFixed(2)}%</div>
-        <div><strong>Position:</strong> ${row.position.toFixed(1)}</div>
-      `;
-
-      statusEl.innerHTML = "<span style='color:green'>Data loaded successfully</span>";
+      const r = data.rows[0];
+      statusEl.textContent =
+        `✅ Clicks: ${r.clicks}, Impressions: ${r.impressions}, CTR: ${(r.ctr * 100).toFixed(2)}%`;
     })
     .catch(() => {
-      statusEl.innerHTML = "<span style='color:red'>GSC API error</span>";
+      statusEl.textContent = "❌ Failed to fetch GSC data";
     });
+});
+
+/* -------------------- HELPERS -------------------- */
+function showInvalidPage() {
+  statusEl.textContent = "❌ Open a valid website page (http/https)";
+}
+
+function formatDate(d) {
+  return d.toISOString().split("T")[0];
 }

@@ -3,17 +3,17 @@ const fetchBtn = document.getElementById("fetchBtn");
 const statusEl = document.getElementById("status");
 const statsEl = document.getElementById("stats");
 
-let token = "";
+let token = null;
 let sites = [];
 
-/* ---------------- CONNECT GOOGLE ---------------- */
+/* ---------------- CONNECT GSC ---------------- */
 
 connectBtn.addEventListener("click", () => {
-  statusEl.textContent = "Opening Google login…";
+  statusEl.textContent = "Signing in with Google…";
 
   chrome.identity.getAuthToken({ interactive: true }, t => {
     if (chrome.runtime.lastError || !t) {
-      statusEl.innerHTML = "<span class='error'>Google login failed</span>";
+      statusEl.innerHTML = "<span style='color:red'>Google login failed</span>";
       return;
     }
 
@@ -29,11 +29,11 @@ function loadSites() {
     .then(r => r.json())
     .then(d => {
       sites = d.siteEntry || [];
-      statusEl.innerHTML = `<span class="success">GSC connected</span>`;
+      statusEl.innerHTML = `<span style="color:green">GSC connected (${sites.length} properties)</span>`;
       fetchBtn.disabled = false;
     })
     .catch(() => {
-      statusEl.innerHTML = "<span class='error'>Failed to connect GSC</span>";
+      statusEl.innerHTML = "<span style='color:red'>Failed to load GSC sites</span>";
     });
 }
 
@@ -42,41 +42,56 @@ function loadSites() {
 fetchBtn.addEventListener("click", () => {
   statsEl.innerHTML = "";
 
-  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+    const tab = tabs[0];
+
     if (!tab || !tab.url || !tab.url.startsWith("http")) {
-      statusEl.innerHTML = "<span class='error'>Open a website page</span>";
+      statusEl.innerHTML = "<span style='color:red'>Open a valid website page</span>";
       return;
     }
 
-    const pageUrl = tab.url.split("#")[0];
-    const property = findProperty(pageUrl);
+    let pageUrl;
+    try {
+      const u = new URL(tab.url);
+      u.hash = "";
+      pageUrl = u.toString();
+    } catch {
+      statusEl.innerHTML = "<span style='color:red'>Invalid page URL</span>";
+      return;
+    }
+
+    const property = matchProperty(pageUrl);
 
     if (!property) {
-      statusEl.innerHTML = "<span class='error'>This page is not in GSC</span>";
+      statusEl.innerHTML = "<span style='color:red'>Page not found in GSC</span>";
       return;
     }
 
-    statusEl.textContent = "Fetching GSC data…";
-    fetchPageStats(property, pageUrl);
+    statusEl.textContent = "Fetching page-level GSC data…";
+    fetchPageData(property, pageUrl);
   });
 });
 
-function findProperty(pageUrl) {
+/* ---------------- PROPERTY MATCHING ---------------- */
+
+function matchProperty(pageUrl) {
   const host = new URL(pageUrl).hostname;
 
-  // URL-prefix first
+  // URL-prefix (best)
   for (const s of sites) {
     if (s.siteUrl.startsWith("http") && pageUrl.startsWith(s.siteUrl)) {
       return s.siteUrl;
     }
   }
 
-  // Domain fallback
-  const domain = `sc-domain:${host}`;
-  return sites.find(s => s.siteUrl === domain)?.siteUrl || null;
+  // Domain property fallback
+  const domainProp = `sc-domain:${host}`;
+  return sites.find(s => s.siteUrl === domainProp)?.siteUrl || null;
 }
 
-function fetchPageStats(property, pageUrl) {
+/* ---------------- FETCH DATA ---------------- */
+
+function fetchPageData(property, pageUrl) {
   const end = new Date();
   const start = new Date();
   start.setDate(end.getDate() - 3);
@@ -110,20 +125,20 @@ function fetchPageStats(property, pageUrl) {
       const row = d.rows?.[0];
 
       if (!row) {
-        statusEl.innerHTML = "<span class='error'>No data for this page</span>";
+        statusEl.innerHTML = "<span style='color:red'>No data for this page</span>";
         return;
       }
 
       statsEl.innerHTML = `
-        <div class="stat"><strong>Clicks:</strong> ${row.clicks}</div>
-        <div class="stat"><strong>Impressions:</strong> ${row.impressions}</div>
-        <div class="stat"><strong>CTR:</strong> ${(row.ctr * 100).toFixed(2)}%</div>
-        <div class="stat"><strong>Position:</strong> ${row.position.toFixed(1)}</div>
+        <div><strong>Clicks:</strong> ${row.clicks}</div>
+        <div><strong>Impressions:</strong> ${row.impressions}</div>
+        <div><strong>CTR:</strong> ${(row.ctr * 100).toFixed(2)}%</div>
+        <div><strong>Position:</strong> ${row.position.toFixed(1)}</div>
       `;
 
-      statusEl.innerHTML = "<span class='success'>Data loaded</span>";
+      statusEl.innerHTML = "<span style='color:green'>Data loaded successfully</span>";
     })
     .catch(() => {
-      statusEl.innerHTML = "<span class='error'>Failed to fetch data</span>";
+      statusEl.innerHTML = "<span style='color:red'>GSC API error</span>";
     });
 }

@@ -5,7 +5,10 @@ const fetchBtn = document.getElementById("fetchBtn");
 let accessToken = null;
 let pageUrl = null;
 
-/* -------------------- GET CURRENT PAGE URL -------------------- */
+// Disable fetch button initially
+fetchBtn.disabled = true;
+
+/* ---------------- GET CURRENT PAGE URL ---------------- */
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (!tabs || !tabs[0] || !tabs[0].url) {
     showInvalidPage();
@@ -20,9 +23,14 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   }
 
   pageUrl = url;
+
+  // If Google already connected, enable fetch
+  if (accessToken) {
+    fetchBtn.disabled = false;
+  }
 });
 
-/* -------------------- CONNECT GOOGLE -------------------- */
+/* ---------------- CONNECT GOOGLE ---------------- */
 connectBtn.addEventListener("click", () => {
   statusEl.textContent = "Connecting to Google…";
 
@@ -34,20 +42,17 @@ connectBtn.addEventListener("click", () => {
 
     accessToken = token;
     statusEl.textContent = "✅ Google connected. Ready to fetch GSC data.";
+
+    // Enable fetch button if page URL exists
+    if (pageUrl) {
+      fetchBtn.disabled = false;
+    }
   });
 });
 
-/* -------------------- FETCH PAGE GSC DATA -------------------- */
+/* ---------------- FETCH PAGE GSC DATA ---------------- */
 fetchBtn.addEventListener("click", () => {
-  if (!accessToken) {
-    statusEl.textContent = "❌ Please connect Google first";
-    return;
-  }
-
-  if (!pageUrl) {
-    showInvalidPage();
-    return;
-  }
+  if (!accessToken || !pageUrl) return;
 
   statusEl.textContent = "Fetching GSC data…";
 
@@ -93,9 +98,10 @@ fetchBtn.addEventListener("click", () => {
     });
 });
 
-/* -------------------- HELPERS -------------------- */
+/* ---------------- HELPERS ---------------- */
 function showInvalidPage() {
   statusEl.textContent = "❌ Open a valid website page (http/https)";
+  fetchBtn.disabled = true;
 }
 
 function formatDate(d) {

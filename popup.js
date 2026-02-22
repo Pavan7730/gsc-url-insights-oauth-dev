@@ -1,67 +1,72 @@
 const loginBtn = document.getElementById("loginBtn");
 const fetchBtn = document.getElementById("fetchBtn");
 const statusEl = document.getElementById("status");
-const rangeEl = document.getElementById("range");
-
-const totalsEl = document.getElementById("totals");
-const clicksEl = document.getElementById("clicks");
-const imprEl = document.getElementById("impr");
-const ctrEl = document.getElementById("ctr");
-
-const table = document.getElementById("table");
+const rangeSelect = document.getElementById("range");
+const table = document.getElementById("queryTable");
 const tbody = table.querySelector("tbody");
 
 let token = null;
-let pageUrl = null;
+let pageUrl = "";
 
-/* -------- GET CURRENT PAGE URL -------- */
+/* ---------------- Get active tab URL ---------------- */
+
 chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
   try {
     const u = new URL(tab.url);
-    if (!u.protocol.startsWith("http")) throw "invalid";
-    pageUrl = u.origin + u.pathname;
+    if (u.protocol === "http:" || u.protocol === "https:") {
+      pageUrl = u.origin + u.pathname;
+    } else {
+      statusEl.innerHTML = `<span class="error">Open a valid website page</span>`;
+    }
   } catch {
-    statusEl.textContent = "❌ Open a valid website page";
-    statusEl.className = "status error";
+    statusEl.innerHTML = `<span class="error">Open a valid website page</span>`;
   }
 });
 
-/* -------- LOGIN -------- */
-loginBtn.onclick = () => {
-  chrome.identity.getAuthToken({ interactive: true }, t => {
+/* ---------------- Google Login ---------------- */
+
+loginBtn.addEventListener("click", () => {
+  chrome.identity.getAuthToken({ interactive: true }, (t) => {
     if (chrome.runtime.lastError || !t) {
-      statusEl.textContent = "❌ Google login failed";
-      statusEl.className = "status error";
+      statusEl.innerHTML = `<span class="error">Google login failed</span>`;
       return;
     }
 
     token = t;
-    statusEl.textContent = "✅ Google connected. Ready to fetch GSC data.";
-    statusEl.className = "status success";
     fetchBtn.disabled = false;
+    statusEl.innerHTML = `<span class="success">✔ Google connected. Ready to fetch GSC data.</span>`;
   });
-};
+});
 
-/* -------- FETCH DATA -------- */
-fetchBtn.onclick = () => {
-  if (!token || !pageUrl) return;
+/* ---------------- Fetch Page Data ---------------- */
 
-  statusEl.textContent = "Fetching GSC data…";
-  statusEl.className = "status";
-  totalsEl.style.display = "none";
+fetchBtn.addEventListener("click", () => {
+  if (!pageUrl) {
+    statusEl.innerHTML = `<span class="error">Open a valid website page</span>`;
+    return;
+  }
+
+  fetchBtn.disabled = true;
+  statusEl.textContent = "Fetching GSC data...";
   table.style.display = "none";
   tbody.innerHTML = "";
 
-  const days = parseInt(rangeEl.value, 10);
+  const days = parseInt(rangeSelect.value, 10);
   const end = new Date();
   const start = new Date();
   start.setDate(end.getDate() - days);
 
+  const startDate = start.toISOString().split("T")[0];
+  const endDate = end.toISOString().split("T")[0];
+
   const property = `sc-domain:${new URL(pageUrl).hostname}`;
 
-  const baseBody = {
-    startDate: formatDate(start),
-    endDate: formatDate(end),
+  /* -------- Totals -------- */
+
+  fetchGSC(property, {
+    startDate,
+    endDate,
+    dimensions: [],
     dimensionFilterGroups: [{
       filters: [{
         dimension: "page",
@@ -69,48 +74,46 @@ fetchBtn.onclick = () => {
         expression: pageUrl
       }]
     }]
-  };
+  })
+    .then(rows => {
+      const r = rows[0] || { clicks: 0, impressions: 0, ctr: 0 };
+      statusEl.innerHTML = `
+        <span class="success">
+          ✔ Clicks: ${r.clicks},
+          Impressions: ${r.impressions},
+          CTR: ${(r.ctr * 100).toFixed(2)}%
+        </span>`;
+      return fetchQueries(property, startDate, endDate);
+    })
+    .then(renderQueries)
+    .catch(() => {
+      statusEl.innerHTML = `<span class="error">No data found for this page</span>`;
+    })
+    .finally(() => {
+      fetchBtn.disabled = false;
+    });
+});
 
-  /* -------- TOTALS -------- */
-  fetchGSC(property, {
-    ...baseBody,
-    dimensions: []
-  }).then(rows => {
-    if (!rows.length) return;
+/* ---------------- Queries ---------------- */
 
-    const r = rows[0];
-    clicksEl.textContent = r.clicks;
-    imprEl.textContent = r.impressions;
-    ctrEl.textContent = (r.ctr * 100).toFixed(2) + "%";
-    totalsEl.style.display = "block";
-  });
-
-  /* -------- QUERIES -------- */
-  fetchGSC(property, {
-    ...baseBody,
+function fetchQueries(property, startDate, endDate) {
+  return fetchGSC(property, {
+    startDate,
+    endDate,
     dimensions: ["query"],
-    rowLimit: 10
-  }).then(rows => {
-    if (!rows.length) {
-      statusEl.textContent = "⚠ No query data found";
-      return;
-    }
-
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td>${r.keys[0]}</td>
-        <td>${r.clicks}</td>
-        <td>${r.impressions}</td>
-      </tr>
-    `).join("");
-
-    table.style.display = "table";
-    statusEl.textContent = "✅ GSC data loaded successfully";
-    statusEl.className = "status success";
+    rowLimit: 10,
+    dimensionFilterGroups: [{
+      filters: [{
+        dimension: "page",
+        operator: "equals",
+        expression: pageUrl
+      }]
+    }]
   });
-};
+}
 
-/* -------- HELPERS -------- */
+/* ---------------- GSC API ---------------- */
+
 function fetchGSC(property, body) {
   return fetch(
     `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
@@ -127,6 +130,18 @@ function fetchGSC(property, body) {
     .then(d => d.rows || []);
 }
 
-function formatDate(d) {
-  return d.toISOString().split("T")[0];
+/* ---------------- Render Queries ---------------- */
+
+function renderQueries(rows) {
+  if (!rows.length) return;
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.keys[0]}</td>
+      <td>${r.clicks}</td>
+      <td>${r.impressions}</td>
+    </tr>
+  `).join("");
+
+  table.style.display = "table";
 }

@@ -1,42 +1,28 @@
 const statusEl = document.getElementById("status");
+const connectBtn = document.getElementById("connectGSC");
 
-document.getElementById("connect").addEventListener("click", () => {
+connectBtn.addEventListener("click", () => {
   statusEl.textContent = "Opening Google login...";
 
-  chrome.runtime.sendMessage({ type: "LOGIN" }, async (res) => {
-    if (!res || !res.success) {
-      statusEl.textContent = "❌ Google login failed";
-      return;
-    }
-
-    statusEl.textContent = "✅ Logged in successfully";
-
-    // OPTIONAL: test GSC access safely
-    try {
-      const resp = await fetch(
-        "https://www.googleapis.com/webmasters/v3/sites",
-        {
-          headers: {
-            Authorization: `Bearer ${res.token}`
-          }
-        }
-      );
-
-      if (!resp.ok) {
-        statusEl.textContent = "⚠ Logged in, but no GSC access";
+  chrome.identity.getAuthToken(
+    { interactive: true },
+    (token) => {
+      if (chrome.runtime.lastError) {
+        console.error("OAuth error:", chrome.runtime.lastError);
+        statusEl.textContent = "❌ Google login failed";
         return;
       }
 
-      const data = await resp.json();
-
-      if (!data.siteEntry || data.siteEntry.length === 0) {
-        statusEl.textContent = "⚠ No GSC properties found";
-      } else {
-        statusEl.textContent = `✅ ${data.siteEntry.length} GSC properties found`;
+      if (!token) {
+        statusEl.textContent = "❌ No token received";
+        return;
       }
 
-    } catch (e) {
-      statusEl.textContent = "⚠ Logged in, GSC not available";
+      console.log("OAuth token:", token);
+      statusEl.textContent = "✅ Google login successful";
+
+      // OPTIONAL: store token if needed later
+      chrome.storage.local.set({ gscToken: token });
     }
-  });
+  );
 });

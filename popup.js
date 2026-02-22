@@ -1,30 +1,12 @@
-const pageUrlEl = document.getElementById("pageUrl");
-const statusEl = document.getElementById("status");
 const connectBtn = document.getElementById("connectBtn");
 const fetchBtn = document.getElementById("fetchBtn");
-const rangeSelect = document.getElementById("range");
-const table = document.getElementById("table");
-const tbody = table.querySelector("tbody");
+const statusEl = document.getElementById("status");
+const statsEl = document.getElementById("stats");
 
-let pageUrl = "";
 let token = "";
 let sites = [];
 
-/* ---------------- GET CURRENT TAB URL ---------------- */
-
-chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-  if (!tab || !tab.url || !tab.url.startsWith("http")) {
-    pageUrlEl.textContent = "❌ Open a normal webpage (http/https)";
-    connectBtn.disabled = true;
-    fetchBtn.disabled = true;
-    return;
-  }
-
-  pageUrl = tab.url.split("#")[0];
-  pageUrlEl.textContent = pageUrl;
-});
-
-/* ---------------- CONNECT GSC ---------------- */
+/* ---------------- CONNECT GOOGLE ---------------- */
 
 connectBtn.addEventListener("click", () => {
   statusEl.textContent = "Opening Google login…";
@@ -47,56 +29,62 @@ function loadSites() {
     .then(r => r.json())
     .then(d => {
       sites = d.siteEntry || [];
-      statusEl.innerHTML = `<span class="success">✅ GSC connected. ${sites.length} properties found.</span>`;
+      statusEl.innerHTML = `<span class="success">GSC connected</span>`;
       fetchBtn.disabled = false;
     })
     .catch(() => {
-      statusEl.innerHTML = "<span class='error'>Failed to load GSC properties</span>";
+      statusEl.innerHTML = "<span class='error'>Failed to connect GSC</span>";
     });
 }
 
 /* ---------------- FETCH PAGE DATA ---------------- */
 
 fetchBtn.addEventListener("click", () => {
-  table.style.display = "none";
-  tbody.innerHTML = "";
+  statsEl.innerHTML = "";
 
-  const property = findProperty();
-  if (!property) {
-    statusEl.innerHTML = "<span class='error'>Page not found in any GSC property</span>";
-    return;
-  }
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (!tab || !tab.url || !tab.url.startsWith("http")) {
+      statusEl.innerHTML = "<span class='error'>Open a website page</span>";
+      return;
+    }
 
-  statusEl.textContent = "Fetching page-level data…";
-  fetchData(property);
+    const pageUrl = tab.url.split("#")[0];
+    const property = findProperty(pageUrl);
+
+    if (!property) {
+      statusEl.innerHTML = "<span class='error'>This page is not in GSC</span>";
+      return;
+    }
+
+    statusEl.textContent = "Fetching GSC data…";
+    fetchPageStats(property, pageUrl);
+  });
 });
 
-function findProperty() {
+function findProperty(pageUrl) {
   const host = new URL(pageUrl).hostname;
 
-  // Prefer URL-prefix
+  // URL-prefix first
   for (const s of sites) {
     if (s.siteUrl.startsWith("http") && pageUrl.startsWith(s.siteUrl)) {
       return s.siteUrl;
     }
   }
 
-  // Fallback to domain
-  const domainProp = `sc-domain:${host}`;
-  return sites.find(s => s.siteUrl === domainProp)?.siteUrl || null;
+  // Domain fallback
+  const domain = `sc-domain:${host}`;
+  return sites.find(s => s.siteUrl === domain)?.siteUrl || null;
 }
 
-function fetchData(property) {
-  const days = parseInt(rangeSelect.value, 10);
+function fetchPageStats(property, pageUrl) {
   const end = new Date();
   const start = new Date();
-  start.setDate(end.getDate() - days);
+  start.setDate(end.getDate() - 3);
 
   const body = {
     startDate: start.toISOString().split("T")[0],
     endDate: end.toISOString().split("T")[0],
-    dimensions: ["query"],
-    rowLimit: 10,
+    dimensions: [],
     dimensionFilterGroups: [{
       filters: [{
         dimension: "page",
@@ -106,31 +94,34 @@ function fetchData(property) {
     }]
   };
 
-  fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  })
+  fetch(
+    `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    }
+  )
     .then(r => r.json())
     .then(d => {
-      if (!d.rows || !d.rows.length) {
+      const row = d.rows?.[0];
+
+      if (!row) {
         statusEl.innerHTML = "<span class='error'>No data for this page</span>";
         return;
       }
 
-      tbody.innerHTML = d.rows.map(r => `
-        <tr>
-          <td>${r.keys[0]}</td>
-          <td>${r.clicks}</td>
-          <td>${r.impressions}</td>
-        </tr>
-      `).join("");
+      statsEl.innerHTML = `
+        <div class="stat"><strong>Clicks:</strong> ${row.clicks}</div>
+        <div class="stat"><strong>Impressions:</strong> ${row.impressions}</div>
+        <div class="stat"><strong>CTR:</strong> ${(row.ctr * 100).toFixed(2)}%</div>
+        <div class="stat"><strong>Position:</strong> ${row.position.toFixed(1)}</div>
+      `;
 
-      table.style.display = "table";
-      statusEl.innerHTML = "<span class='success'>✅ Page data loaded</span>";
+      statusEl.innerHTML = "<span class='success'>Data loaded</span>";
     })
     .catch(() => {
       statusEl.innerHTML = "<span class='error'>Failed to fetch data</span>";

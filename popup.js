@@ -11,7 +11,10 @@ let sites = [];
 let pageUrl = "";
 
 chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-  pageUrl = tab.url;
+  const u = new URL(tab.url);
+  u.search = "";
+  u.hash = "";
+  pageUrl = u.toString();
   document.getElementById("pageUrl").textContent = pageUrl;
 });
 
@@ -38,7 +41,6 @@ function loadSites() {
     .then(r => r.json())
     .then(d => {
       sites = d.siteEntry || [];
-
       statusEl.textContent = `✅ GSC connected. ${sites.length} properties found.`;
       fetchBtn.disabled = false;
       dateRange.disabled = false;
@@ -50,32 +52,29 @@ function loadSites() {
 
 /* ---------- FETCH PAGE DATA ---------- */
 fetchBtn.onclick = () => {
-  const matchedProperty = findPropertyForPage();
+  const property = findPropertyForPage();
 
-  if (!matchedProperty) {
+  if (!property) {
     statusEl.textContent = "⚠ Page not found in any GSC property";
     return;
   }
 
   statusEl.textContent = "Fetching page-level data…";
-  fetchPageData(matchedProperty);
+  fetchPageData(property);
 };
 
 /* ---------- PROPERTY MATCHING ---------- */
 function findPropertyForPage() {
-  const url = new URL(pageUrl);
-
-  // 1️⃣ Exact URL-prefix match
+  // URL-prefix first (most accurate)
   for (const s of sites) {
     if (s.siteUrl.startsWith("http") && pageUrl.startsWith(s.siteUrl)) {
       return s.siteUrl;
     }
   }
 
-  // 2️⃣ Domain property fallback
-  return sites.find(s =>
-    s.siteUrl === `sc-domain:${url.hostname}`
-  )?.siteUrl;
+  // Domain fallback
+  const host = new URL(pageUrl).hostname;
+  return sites.find(s => s.siteUrl === `sc-domain:${host}`)?.siteUrl;
 }
 
 /* ---------- PAGE QUERY ---------- */
@@ -92,7 +91,7 @@ function fetchPageData(property) {
     dimensionFilterGroups: [{
       filters: [{
         dimension: "page",
-        operator: "equals",
+        operator: "contains",   // 🔥 FIX
         expression: pageUrl
       }]
     }]
@@ -118,6 +117,7 @@ function fetchPageData(property) {
 function renderData(rows) {
   statsEl.innerHTML = "";
   tbody.innerHTML = "";
+  table.style.display = "none";
 
   if (!rows.length) {
     statusEl.textContent = "⚠ No page-level data found";

@@ -1,54 +1,151 @@
-// popup.js
-
 const statusEl = document.getElementById("status");
-const loginBtn = document.getElementById("loginBtn");
+const statsEl = document.getElementById("stats");
+const table = document.getElementById("queriesTable");
+const tbody = table.querySelector("tbody");
 
-loginBtn.addEventListener("click", () => {
-  statusEl.textContent = "Opening Google login…";
-  statusEl.className = "";
+const rangeSelect = document.getElementById("dateRange");
+const fromInput = document.getElementById("fromDate");
+const toInput = document.getElementById("toDate");
+const fetchBtn = document.getElementById("fetchBtn");
 
-  // Step 1: Authenticate with Google
+let currentUrl = "";
+
+// Get current tab URL
+chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+  currentUrl = tab.url;
+  document.getElementById("pageUrl").textContent = currentUrl;
+});
+
+// Toggle custom dates
+rangeSelect.addEventListener("change", () => {
+  const isCustom = rangeSelect.value === "custom";
+  fromInput.style.display = isCustom ? "block" : "none";
+  toInput.style.display = isCustom ? "block" : "none";
+});
+
+// Main fetch
+fetchBtn.addEventListener("click", () => {
+  fetchBtn.disabled = true;
+  statusEl.textContent = "Fetching GSC data…";
+  statsEl.innerHTML = "";
+  table.style.display = "none";
+
   chrome.identity.getAuthToken({ interactive: true }, (token) => {
     if (chrome.runtime.lastError || !token) {
-      console.error("OAuth error:", chrome.runtime.lastError);
-      statusEl.textContent = "❌ Google login failed";
-      statusEl.className = "error";
+      statusEl.textContent = "❌ Google login required";
+      fetchBtn.disabled = false;
       return;
     }
 
-    // Store token (optional, useful later)
-    chrome.storage.local.set({ gscToken: token });
-
-    statusEl.textContent = "✅ Google login successful. Checking GSC access…";
-
-    // Step 2: Check GSC access by listing sites
-    fetch("https://www.googleapis.com/webmasters/v3/sites", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("GSC API error");
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (!data.siteEntry || data.siteEntry.length === 0) {
-          statusEl.textContent =
-            "⚠ Logged in, but no Google Search Console properties found for this account.";
-          statusEl.className = "warning";
-        } else {
-          statusEl.textContent =
-            `✅ GSC connected. ${data.siteEntry.length} properties found.`;
-          statusEl.className = "success";
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        statusEl.textContent =
-          "⚠ Logged in, but unable to read Google Search Console data.";
-        statusEl.className = "warning";
-      });
+    getPageData(token);
   });
 });
+
+function getPageData(token) {
+  const today = new Date();
+  const endDate = formatDate(today);
+
+  let startDate;
+  if (rangeSelect.value === "custom") {
+    startDate = fromInput.value;
+  } else {
+    const days = parseInt(rangeSelect.value, 10);
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    startDate = formatDate(d);
+  }
+
+  // Find property via domain
+  const property = `sc-domain:${new URL(currentUrl).hostname}`;
+
+  // Page totals
+  const totalsBody = {
+    startDate,
+    endDate,
+    dimensions: [],
+    dimensionFilterGroups: [{
+      filters: [{
+        dimension: "page",
+        operator: "equals",
+        expression: currentUrl
+      }]
+    }]
+  };
+
+  fetchGSC(property, token, totalsBody)
+    .then(totals => {
+      renderTotals(totals);
+      return fetchQueries(property, token, startDate, endDate);
+    })
+    .then(renderQueries)
+    .catch(() => {
+      statusEl.textContent = "⚠ No data found for this page";
+    })
+    .finally(() => {
+      fetchBtn.disabled = false;
+    });
+}
+
+function fetchQueries(property, token, startDate, endDate) {
+  const body = {
+    startDate,
+    endDate,
+    dimensions: ["query"],
+    rowLimit: 10,
+    dimensionFilterGroups: [{
+      filters: [{
+        dimension: "page",
+        operator: "equals",
+        expression: currentUrl
+      }]
+    }]
+  };
+
+  return fetchGSC(property, token, body);
+}
+
+function fetchGSC(property, token, body) {
+  return fetch(
+    `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    }
+  )
+    .then(r => r.json())
+    .then(d => d.rows || []);
+}
+
+function renderTotals(rows) {
+  const r = rows[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+
+  statsEl.innerHTML = `
+    <div class="card"><strong>${r.clicks}</strong>Clicks</div>
+    <div class="card"><strong>${r.impressions}</strong>Impressions</div>
+    <div class="card"><strong>${(r.ctr * 100).toFixed(2)}%</strong>CTR</div>
+    <div class="card"><strong>${r.position.toFixed(1)}</strong>Position</div>
+  `;
+}
+
+function renderQueries(rows) {
+  if (!rows.length) return;
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.keys[0]}</td>
+      <td>${r.clicks}</td>
+      <td>${r.impressions}</td>
+    </tr>
+  `).join("");
+
+  table.style.display = "table";
+  statusEl.textContent = "✅ Page-level GSC data loaded";
+}
+
+function formatDate(d) {
+  return d.toISOString().split("T")[0];
+}

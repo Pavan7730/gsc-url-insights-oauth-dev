@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>GSC URL Insights</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -12,35 +13,31 @@
     }
 
     h3 {
-      margin: 0 0 12px;
-      font-size: 16px;
+      margin: 0 0 10px;
+      font-size: 18px;
     }
 
-    button {
+    button, select {
       width: 100%;
       padding: 10px;
-      margin-top: 8px;
       font-size: 14px;
-      border: none;
+      margin-top: 10px;
       border-radius: 5px;
-      cursor: pointer;
+      border: none;
     }
 
-    #loginBtn {
+    .google-btn {
       background: #1a73e8;
       color: #fff;
     }
 
-    #fetchBtn {
+    .fetch-btn {
       background: #34a853;
       color: #fff;
     }
 
-    select {
-      width: 100%;
-      padding: 8px;
-      margin-top: 10px;
-      font-size: 13px;
+    .fetch-btn:disabled {
+      background: #ccc;
     }
 
     .status {
@@ -48,19 +45,19 @@
       font-size: 13px;
     }
 
-    .success { color: #188038; }
-    .error { color: #d93025; }
+    .success {
+      color: #188038;
+    }
 
-    .totals {
-      margin-top: 10px;
-      font-size: 13px;
+    .error {
+      color: #d93025;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      font-size: 12px;
+      font-size: 13px;
     }
 
     th, td {
@@ -70,7 +67,7 @@
     }
 
     th {
-      background: #f7f7f7;
+      background: #f8f9fa;
     }
   </style>
 </head>
@@ -78,24 +75,23 @@
 <body>
   <h3>GSC URL Insights</h3>
 
-  <button id="loginBtn">Connect with Google</button>
+  <button id="loginBtn" class="google-btn">
+    Connect with Google
+  </button>
 
   <select id="range">
     <option value="3">Last 3 days</option>
     <option value="7">Last 7 days</option>
+    <option value="28">Last 28 days</option>
   </select>
 
-  <button id="fetchBtn" disabled>Check Page GSC Data</button>
+  <button id="fetchBtn" class="fetch-btn" disabled>
+    Check Page GSC Data
+  </button>
 
-  <div class="status" id="status"></div>
+  <div id="status" class="status"></div>
 
-  <div class="totals" id="totals" style="display:none;">
-    <div>✅ <strong>Total Clicks:</strong> <span id="clicks"></span></div>
-    <div>✅ <strong>Total Impressions:</strong> <span id="impr"></span></div>
-    <div>✅ <strong>CTR:</strong> <span id="ctr"></span></div>
-  </div>
-
-  <table id="table" style="display:none;">
+  <table id="queryTable" style="display:none">
     <thead>
       <tr>
         <th>Query</th>

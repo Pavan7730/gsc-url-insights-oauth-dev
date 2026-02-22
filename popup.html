@@ -1,45 +1,158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>GSC URL Insights</title>
+
   <style>
-    body { font-family: Arial; width: 360px; padding: 14px; }
-    button { width: 100%; padding: 10px; margin-top: 8px; }
-    .status { margin-top: 8px; font-size: 12px; }
-    .error { color: #d93025; }
-    .success { color: #188038; }
-    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
-    .card { background: #f5f5f5; padding: 8px; border-radius: 4px; }
-    table { width: 100%; margin-top: 10px; font-size: 12px; border-collapse: collapse; }
-    td, th { border-bottom: 1px solid #ddd; padding: 4px; }
+    body {
+      font-family: Inter, Arial, sans-serif;
+      width: 380px;
+      padding: 14px;
+      background: #ffffff;
+      box-sizing: border-box;
+    }
+
+    h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+    }
+
+    .url {
+      font-size: 11px;
+      color: #555;
+      word-break: break-all;
+      margin-bottom: 10px;
+    }
+
+    select,
+    input,
+    button {
+      width: 100%;
+      padding: 9px;
+      margin-top: 8px;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #1a73e8;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #f1f3f4;
+      color: #000;
+      border: 1px solid #dadce0;
+    }
+
+    button:disabled {
+      background: #dcdcdc;
+      cursor: not-allowed;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .card {
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .card strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #eee;
+      padding: 6px;
+      text-align: left;
+    }
+
+    th {
+      background: #fafafa;
+      font-weight: 600;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+    }
+
+    .success {
+      color: #188038;
+    }
+
+    .error {
+      color: #d93025;
+    }
   </style>
 </head>
+
 <body>
 
-<h3>GSC URL Insights</h3>
-<div id="pageUrl"></div>
+  <h3>GSC URL Insights</h3>
 
-<button id="connectBtn">Connect GSC</button>
+  <div class="url" id="pageUrl">Loading page URL…</div>
 
-<select id="dateRange" disabled>
-  <option value="3">Last 3 days</option>
-  <option value="7">Last 7 days</option>
-</select>
+  <!-- CONNECT -->
+  <button id="connectBtn" class="secondary">
+    Connect GSC
+  </button>
 
-<button id="fetchBtn" disabled>Fetch Page Data</button>
+  <!-- DATE RANGE -->
+  <select id="dateRange">
+    <option value="3">Last 3 days</option>
+    <option value="7">Last 7 days</option>
+    <option value="custom">Custom range</option>
+  </select>
 
-<div class="stats" id="stats"></div>
+  <input type="date" id="fromDate" style="display:none" />
+  <input type="date" id="toDate" style="display:none" />
 
-<table id="table" style="display:none">
-  <thead>
-    <tr><th>Query</th><th>Clicks</th><th>Impr</th></tr>
-  </thead>
-  <tbody></tbody>
-</table>
+  <!-- FETCH -->
+  <button id="fetchBtn" disabled>
+    Fetch Page Data
+  </button>
 
-<div class="status" id="status"></div>
+  <!-- STATS -->
+  <div class="stats" id="stats"></div>
 
-<script src="popup.js"></script>
+  <!-- QUERIES TABLE (IMPORTANT IDs) -->
+  <table id="table" style="display:none">
+    <thead>
+      <tr>
+        <th>Query</th>
+        <th>Clicks</th>
+        <th>Impressions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- STATUS -->
+  <div class="status" id="status"></div>
+
+  <script src="popup.js"></script>
 </body>
 </html>

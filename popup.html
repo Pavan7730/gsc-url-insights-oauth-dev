@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <title>GSC URL Insights</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      width: 260px;
-      padding: 10px;
+      width: 280px;
+      padding: 12px;
     }
     button {
       width: 100%;
-      padding: 8px;
-      margin-top: 10px;
+      padding: 10px;
+      font-size: 14px;
       cursor: pointer;
     }
-    .status {
+    #status {
       margin-top: 10px;
       font-size: 13px;
     }
@@ -22,11 +23,8 @@
 </head>
 <body>
 
-  <h3>GSC URL Insights</h3>
-
-  <button id="connect">Connect GSC</button>
-
-  <div class="status" id="status"></div>
+  <button id="connectGSC">Connect GSC</button>
+  <div id="status"></div>
 
   <script src="popup.js"></script>
 </body>

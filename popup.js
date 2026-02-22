@@ -1,28 +1,23 @@
 const statusEl = document.getElementById("status");
-const connectBtn = document.getElementById("connectGSC");
+const loginBtn = document.getElementById("loginBtn");
 
-connectBtn.addEventListener("click", () => {
-  statusEl.textContent = "Opening Google login...";
+loginBtn.addEventListener("click", () => {
+  statusEl.textContent = "Opening Google login…";
 
-  chrome.identity.getAuthToken(
-    { interactive: true },
-    (token) => {
-      if (chrome.runtime.lastError) {
-        console.error("OAuth error:", chrome.runtime.lastError);
-        statusEl.textContent = "❌ Google login failed";
-        return;
-      }
-
-      if (!token) {
-        statusEl.textContent = "❌ No token received";
-        return;
-      }
-
-      console.log("OAuth token:", token);
-      statusEl.textContent = "✅ Google login successful";
-
-      // OPTIONAL: store token if needed later
-      chrome.storage.local.set({ gscToken: token });
+  chrome.identity.getAuthToken({ interactive: true }, (token) => {
+    if (chrome.runtime.lastError || !token) {
+      console.error(chrome.runtime.lastError);
+      statusEl.textContent = "❌ Google login failed";
+      statusEl.className = "error";
+      return;
     }
-  );
+
+    console.log("OAuth token:", token);
+
+    statusEl.textContent = "✅ Google login successful";
+    statusEl.className = "success";
+
+    // Optional: store token
+    chrome.storage.local.set({ gsc_token: token });
+  });
 });

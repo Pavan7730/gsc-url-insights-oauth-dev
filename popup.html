@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>GSC URL Insights</title>
-
   <style>
     body {
       font-family: Arial, sans-serif;
-      width: 300px;
+      width: 320px;
       padding: 14px;
+      box-sizing: border-box;
     }
 
     h3 {
-      margin: 0 0 10px;
+      margin: 0 0 12px;
       font-size: 16px;
     }
 
@@ -36,38 +36,34 @@
       color: #fff;
     }
 
-    button:disabled {
+    #fetchBtn:disabled {
       background: #ccc;
       cursor: not-allowed;
     }
 
     .status {
       margin-top: 10px;
-      font-size: 13px;
+      font-size: 12px;
     }
-
-    .success { color: #188038; }
-    .error { color: #d93025; }
 
     .stats {
       margin-top: 12px;
-      font-size: 14px;
-    }
-
-    .stat {
-      margin-bottom: 6px;
+      font-size: 13px;
+      line-height: 1.6;
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
     }
   </style>
 </head>
-
 <body>
+
   <h3>GSC URL Insights</h3>
 
   <button id="connectBtn">Connect with Google</button>
   <button id="fetchBtn" disabled>Check Page GSC Data</button>
 
   <div class="status" id="status"></div>
-
   <div class="stats" id="stats"></div>
 
   <script src="popup.js"></script>
